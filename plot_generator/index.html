@@ -1,0 +1,115 @@
+<!-- codezap-widgets/plot_generator/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeZap: Python Plot Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f4f4f4;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    #editor {
+      width: 100%;
+      height: 200px;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      resize: vertical;
+    }
+    button {
+      display: block;
+      margin: 10px 0;
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #output {
+      margin-top: 10px;
+      min-height: 200px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      color: #333;
+    }
+    .error {
+      color: red;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [code, setCode] = useState(`import matplotlib.pyplot as plt
+x = [1, 2, 3, 4]
+y = [10, 20, 25, 30]
+plt.plot(x, y, color='blue', label='Data')
+plt.title('Simple Line Plot')
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.legend()
+plt.show()`);
+      const [output, setOutput] = useState('');
+
+      async function runCode() {
+        setOutput('Generating plot...');
+        try {
+          let pyodide = await loadPyodide();
+          await pyodide.loadPackage('matplotlib');
+          let result = await pyodide.runPythonAsync(`
+import matplotlib.pyplot as plt
+import io
+import base64
+plt.switch_backend('agg')
+${code}
+buf = io.BytesIO()
+plt.savefig(buf, format='png')
+plt.close()
+base64.b64encode(buf.getvalue()).decode('utf-8')
+          `);
+          setOutput(`<img src="data:image/png;base64,${result}" alt="Plot Output" style="max-width:100%;" />`);
+        } catch (error) {
+          setOutput(`<div class="error">Error: ${error.message}</div>`);
+        }
+      }
+
+      return (
+        <div>
+          <h1>CodeZap: Python Plot Generator</h1>
+          <p>Write Python matplotlib code to create plots. Try editing the code below!</p>
+          <textarea id="editor" value={code} onChange={(e) => setCode(e.target.value)} />
+          <button onClick={runCode}>Run Code</button>
+          <div id="output" dangerouslySetInnerHTML={{ __html: output }} />
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
