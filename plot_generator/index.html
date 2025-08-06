@@ -62,10 +62,10 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState } = React;
+  const { useState, useEffect } = React;
 
-    function App() {
-      const [code, setCode] = useState(`import matplotlib.pyplot as plt
+  function App() {
+    const [code, setCode] = useState(`import matplotlib.pyplot as plt
 x = [1, 2, 3, 4]
 y = [10, 20, 25, 30]
 plt.plot(x, y, color='blue', label='Data')
@@ -73,15 +73,35 @@ plt.title('Simple Line Plot')
 plt.xlabel('X-axis')
 plt.ylabel('Y-axis')
 plt.legend()
-plt.show()`);
-      const [output, setOutput] = useState('');
+plt.show`);
+    const [output, setOutput] = useState('Loading matplotlib...');
+    const [isMatplotlibLoaded, setIsMatplotlibLoaded] = useState(false);
 
-      async function runCode() {
-        setOutput('Generating plot...');
+    // Preload matplotlib
+    useEffect(() => {
+      async function loadMatplotlib() {
         try {
-          let pyodide = await loadPyodide();
-          await pyodide.loadPackage('matplotlib');
-          let result = await pyodide.runPythonAsync(`
+          window.pyodide = await loadPyodide();
+          await window.pyodide.loadPackage("micropip");
+          const micropip = window.pyodide.pyimport("micropip");
+          await micropip.install('matplotlib');
+          setOutput('Matplotlib loaded successfully!');
+          setIsMatplotlibLoaded(true);
+        } catch (error) {
+          setOutput(`<div class="error">Error loading matplotlib: ${error.message}</div>`);
+        }
+      }
+      loadMatplotlib();
+    }, []);
+
+    async function runCode() {
+      if (!isMatplotlibLoaded) {
+        setOutput('<div class="error">Please wait, matplotlib is still loading...</div>');
+        return;
+      }
+      setOutput('Generating plot...');
+      try {
+        let result = await window.pyodide.runPythonAsync(`
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -91,25 +111,25 @@ buf = io.BytesIO()
 plt.savefig(buf, format='png')
 plt.close()
 base64.b64encode(buf.getvalue()).decode('utf-8')
-          `);
-          setOutput(`<img src="data:image/png;base64,${result}" alt="Plot Output" style="max-width:100%;" />`);
-        } catch (error) {
-          setOutput(`<div class="error">Error: ${error.message}</div>`);
-        }
+        `);
+        setOutput(`<img src="data:image/png;base64,${result}" alt="Plot Output" style="max-width:100%;" />`);
+      } catch (error) {
+        setOutput(`<div class="error">Error: ${error.message}</div>`);
       }
-
-      return (
-        <div>
-          <h1>CodeZap: Python Plot Generator</h1>
-          <p>Write Python matplotlib code to create plots. Try editing the code below!</p>
-          <textarea id="editor" value={code} onChange={(e) => setCode(e.target.value)} />
-          <button onClick={runCode}>Run Code</button>
-          <div id="output" dangerouslySetInnerHTML={{ __html: output }} />
-        </div>
-      );
     }
 
-    ReactDOM.render(<App />, document.getElementById('root'));
-  </script>
+    return (
+      <div>
+        <h1>CodeZap: Python Plot Generator</h1>
+        <p>Write Python matplotlib code to create plots. Try editing the code below!</p>
+        <textarea id="editor" value={code} onChange={(e) => setCode(e.target.value)} />
+        <button onClick={runCode} disabled={!isMatplotlibLoaded}>Run Code</button>
+        <div id="output" dangerouslySetInnerHTML={{ __html: output }} />
+      </div>
+    );
+  }
+
+  ReactDOM.render(<App />, document.getElementById('root'));
+</script>
 </body>
 </html>
